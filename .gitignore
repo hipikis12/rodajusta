@@ -18,6 +18,7 @@ apps/*/android/*
 !apps/*/android/app/
 apps/*/android/app/*
 !apps/*/android/app/src/
+!apps/*/android/app/proguard-rules.pro
 apps/*/android/app/src/*
 !apps/*/android/app/src/main/
 apps/*/android/app/src/main/*

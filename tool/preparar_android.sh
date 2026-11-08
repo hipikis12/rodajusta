@@ -20,6 +20,15 @@ preparar() {
     "$gradle"
   rm -f "$gradle.bak"
   grep -Eq 'minSdk(Version)? (= )?23' "$gradle" || { echo "minSdk não encontrado em $gradle" >&2; exit 1; }
+  # regras do R8 do app (se existirem) entram no build de release
+  if [ -f android/app/proguard-rules.pro ] && ! grep -q 'proguard-rules.pro' "$gradle"; then
+    if [ "${gradle##*.}" = "kts" ]; then
+      sed -i.bak -E 's#^(\s*)buildTypes \{#\1buildTypes {\n\1    getByName("release") { proguardFiles("proguard-rules.pro") }#' "$gradle"
+    else
+      sed -i.bak -E "s#^(\s*)buildTypes \{#\1buildTypes {\n\1    release { proguardFiles 'proguard-rules.pro' }#" "$gradle"
+    fi
+    rm -f "$gradle.bak"
+  fi
 }
 
 if [ $# -gt 0 ]; then
