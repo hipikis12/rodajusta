@@ -1,0 +1,43 @@
+# Node
+node_modules/
+functions/lib/
+functions/.env
+*.log
+
+# Flutter / Dart
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+**/firebase.env.json
+firebase.env.json
+
+# Arquivos Android gerados por tool/preparar_android.sh
+apps/*/android/*
+!apps/*/android/app/
+apps/*/android/app/*
+!apps/*/android/app/src/
+apps/*/android/app/src/*
+!apps/*/android/app/src/main/
+apps/*/android/app/src/main/*
+!apps/*/android/app/src/main/AndroidManifest.xml
+!apps/*/android/app/src/main/kotlin/
+!apps/*/android/app/src/main/res/
+apps/*/android/app/src/main/res/*
+!apps/*/android/app/src/main/res/mipmap-*/
+apps/*/README.md
+apps/*/.metadata
+apps/*/.gitignore
+apps/*/*.iml
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Sistema
+.DS_Store
+.idea/
+.vscode/

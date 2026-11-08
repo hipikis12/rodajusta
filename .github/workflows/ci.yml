@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (regras de negócio, Functions e regras do Firestore)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Instalar dependências das Functions
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+      - name: Checar tipos
+        working-directory: functions
+        run: npm run typecheck
+      - name: Testes das regras de negócio
+        working-directory: functions
+        run: npm test
+      - name: Compilar Functions
+        working-directory: functions
+        run: npm run build
+      - name: Instalar dependências dos testes de regras
+        working-directory: rules-tests
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+      - name: Testes das regras de segurança (emulador)
+        run: npx --yes firebase-tools@latest emulators:exec --only firestore --project rodajusta-teste "npm --prefix rules-tests test"
+
+  core:
+    name: Pacote core (Dart)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - name: Testes
+        working-directory: packages/core
+        run: |
+          dart pub get
+          dart analyze
+          dart test
+
+  apps:
+    name: App ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [operacao, admin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Gerar arquivos Android padrão
+        run: tool/preparar_android.sh ${{ matrix.app }}
+      - name: Dependências
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get
+      - name: Análise
+        working-directory: apps/${{ matrix.app }}
+        run: flutter analyze --no-fatal-infos
+      - name: Testes
+        working-directory: apps/${{ matrix.app }}
+        run: flutter test
+      - name: Compilar APK
+        working-directory: apps/${{ matrix.app }}
+        env:
+          FIREBASE_ENV_JSON: ${{ secrets.FIREBASE_ENV_JSON }}
+        run: |
+          extra=""
+          if [ -n "$FIREBASE_ENV_JSON" ]; then
+            echo "$FIREBASE_ENV_JSON" > firebase.env.json
+            extra="--dart-define-from-file=firebase.env.json"
+          fi
+          flutter build apk --release $extra
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rodajusta-${{ matrix.app }}-apk
+          path: apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14

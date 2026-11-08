@@ -1,0 +1,126 @@
+rules_version = '2';
+
+// RodaJusta — o app só lê o que é seu e só escreve cadastro, localização,
+// configuração da loja e comandas. Status, dinheiro e atribuição de
+// pedidos passam sempre pelas Cloud Functions (que ignoram estas regras).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function logado() { return request.auth != null; }
+    function papel() { return request.auth.token.papel; }
+    function admin() { return logado() && papel() == 'admin'; }
+    function eu(uid) { return logado() && request.auth.uid == uid; }
+    function campo(nome) { return resource.data.get(nome, null); }
+    function soMudou(campos) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
+    }
+    function inteiroEntre(v, min, max) { return v is int && v >= min && v <= max; }
+
+    function configValida(c) {
+      return c.keys().hasOnly(['valorModo', 'valorFixoCentavos', 'faixas', 'destinoPadrao', 'esperaEquipeSeg', 'envioAutomatico', 'impressoraAtiva', 'repassarPara'])
+        && c.valorModo in ['fixo', 'manual', 'faixas']
+        && inteiroEntre(c.valorFixoCentavos, 0, 100000)
+        && c.faixas is list && c.faixas.size() <= 10
+        && c.destinoPadrao in ['geral', 'equipe', 'equipe_primeiro']
+        && c.envioAutomatico is bool
+        && (!('esperaEquipeSeg' in c) || c.esperaEquipeSeg == null || inteiroEntre(c.esperaEquipeSeg, 15, 600))
+        && (!('impressoraAtiva' in c) || c.impressoraAtiva is bool)
+        && (!('repassarPara' in c) || c.repassarPara == null || (c.repassarPara is string && c.repassarPara.size() <= 20));
+    }
+
+    function localizacaoValida(l) {
+      return l.keys().hasOnly(['lat', 'lng', 'geohash', 'em', 'precisao', 'mock'])
+        && l.lat is number && l.lat >= -90 && l.lat <= 90
+        && l.lng is number && l.lng >= -180 && l.lng <= 180
+        && l.geohash is string && l.geohash.size() >= 5 && l.geohash.size() <= 12
+        && l.em == request.time
+        && l.mock is bool;
+    }
+
+    match /users/{uid} {
+      allow read: if eu(uid) || admin();
+      allow update: if eu(uid) && soMudou(['fcmToken']) && request.resource.data.fcmToken is string;
+    }
+
+    match /lojistas/{uid} {
+      allow read: if eu(uid) || admin();
+      allow update: if eu(uid) && soMudou(['config']) && configValida(request.resource.data.config);
+
+      match /equipe/{ent} {
+        allow read: if eu(uid) || eu(ent) || admin();
+      }
+      match /comandas/{cid} {
+        allow read, delete: if eu(uid);
+        allow create: if eu(uid)
+          && request.resource.data.status == 'pendente'
+          && request.resource.data.origem in ['comanda', 'manual'];
+        // a loja pode corrigir ou descartar, sem mudar a origem (inclusive iFood)
+        allow update: if eu(uid)
+          && request.resource.data.status in ['pendente', 'descartada']
+          && request.resource.data.origem == resource.data.origem;
+      }
+    }
+
+    match /entregadores/{uid} {
+      allow read: if eu(uid) || admin()
+        || (logado() && papel() == 'lojista'
+            && exists(/databases/$(database)/documents/lojistas/$(request.auth.uid)/equipe/$(uid)));
+      // o app só envia a localização, e só enquanto trabalha
+      allow update: if eu(uid)
+        && soMudou(['localizacao'])
+        && resource.data.disponibilidade in ['disponivel', 'em_entrega']
+        && localizacaoValida(request.resource.data.localizacao);
+    }
+
+    match /lotes/{id} {
+      allow read: if admin() || (logado() && (campo('lojistaId') == request.auth.uid || campo('entregadorId') == request.auth.uid));
+      // o PIN de coleta só a loja vê
+      match /privado/{doc} {
+        allow read: if admin() || (logado() && resource.data.lojistaId == request.auth.uid);
+      }
+    }
+
+    match /pedidos/{id} {
+      allow read: if admin() || (logado() && (campo('lojistaId') == request.auth.uid || campo('entregadorId') == request.auth.uid));
+    }
+
+    // a oferta mostra só o bairro; o endereço completo aparece depois do aceite
+    match /ofertas/{id} {
+      allow read: if admin() || (logado() && campo('entregadorId') == request.auth.uid);
+    }
+
+    match /lancamentos/{id} {
+      allow read: if admin() || (logado() && (campo('lojistaId') == request.auth.uid || campo('entregadorId') == request.auth.uid));
+    }
+    match /acertos/{id} {
+      allow read: if admin() || (logado() && (campo('lojistaId') == request.auth.uid || campo('entregadorId') == request.auth.uid));
+    }
+    match /convites/{id} {
+      allow read: if admin() || (logado() && (campo('lojistaId') == request.auth.uid || campo('entregadorId') == request.auth.uid));
+    }
+
+    match /faturas/{id} {
+      allow read: if admin() || (logado() && campo('entregadorId') == request.auth.uid);
+      match /creditos/{c} {
+        allow read: if admin() || (logado() && id.matches(request.auth.uid + '_.*'));
+      }
+    }
+    match /semanas/{id} {
+      allow read: if admin() || (logado() && campo('entregadorId') == request.auth.uid);
+    }
+
+    match /incentivos/{id} { allow read: if logado(); }
+    match /turnos/{id} { allow read: if logado(); }
+    match /zonas/{id} { allow read: if logado(); }
+    match /config/parametros { allow read: if logado(); }
+
+    // só o Admin lê; ninguém escreve pelo app
+    match /metricas/{id} { allow read: if admin(); }
+    match /auditoria/{id} { allow read: if admin(); }
+    match /ifoodMerchants/{id} { allow read: if admin(); }
+    match /cpfs/{id} { allow read: if false; }
+    match /eventosIfood/{id} { allow read: if false; }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
