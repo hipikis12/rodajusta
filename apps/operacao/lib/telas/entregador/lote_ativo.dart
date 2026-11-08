@@ -166,6 +166,7 @@ class _CartaoPedido extends StatelessWidget {
                 color: Theme.of(context).colorScheme.errorContainer,
                 child: Text(
                   'Cobrar ${formatarReais((pg['valorCobrarCentavos'] as num? ?? 0).toInt())}'
+                  '${switch (pg['forma']) { 'cartao' => ' no cartão · levar maquininha', 'pix' => ' no Pix', 'dinheiro' => ' em dinheiro', _ => '' }}'
                   '${(pg['trocoParaCentavos'] as num? ?? 0) > 0 ? ' · troco para ${formatarReais((pg['trocoParaCentavos'] as num).toInt())}' : ''}',
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),

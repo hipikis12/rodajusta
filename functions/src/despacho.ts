@@ -242,7 +242,7 @@ interface ItemEnvio {
   telefoneCliente: string;
   destino: { endereco: string; bairro: string; complemento: string; referencia: string; lat: number; lng: number };
   valorEntregaCentavos: number;
-  pagamento: { tipo: "pago" | "cobrar"; valorCobrarCentavos: number; trocoParaCentavos: number };
+  pagamento: { tipo: "pago" | "cobrar"; valorCobrarCentavos: number; trocoParaCentavos: number; forma: string };
   origem: "manual" | "comanda" | "ifood";
   ifoodOrderId: string;
 }
@@ -269,6 +269,8 @@ function lerItem(v: unknown): ItemEnvio {
       tipo: tipoPg,
       valorCobrarCentavos: tipoPg === "cobrar" ? inteiro(pg.valorCobrarCentavos, "valor a cobrar", 1, 10_000_000) : 0,
       trocoParaCentavos: tipoPg === "cobrar" && pg.trocoParaCentavos ? inteiro(pg.trocoParaCentavos, "troco", 0, 10_000_000) : 0,
+      // para o entregador saber se leva maquininha
+      forma: tipoPg === "cobrar" && pg.forma ? umDe(pg.forma, "forma de cobrança", ["dinheiro", "cartao", "pix", "outro"] as const) : "",
     },
     origem: umDe(d.origem, "origem", ["manual", "comanda", "ifood"] as const, "manual"),
     ifoodOrderId: texto(d.ifoodOrderId, "pedido iFood", { opcional: true, max: 80 }),

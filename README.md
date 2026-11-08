@@ -19,13 +19,37 @@ A marca é uma roda com seis partes iguais (o trabalho dividido) e uma parte em 
 
 ### Como o sistema funciona
 
-- **Entrada de pedidos:** digitado, **comanda via Bluetooth** (o celular da loja vira uma impressora; o PDV imprime nele) ou **iFood** (entrega própria, por webhook). Tudo cai na mesma tela, com o botão **Enviar** ou **Enviar juntas**.
+- **Entrada de pedidos:** digitado, colado (texto do WhatsApp etc.), **comanda do PDV** (o celular da loja vira uma impressora) ou **iFood** (entrega própria, por webhook). Tudo cai na mesma tela, com o botão **Enviar** ou **Enviar juntas**.
 - **Distribuição justa:** cada pedido (ou lote) vai em **ondas** para quem tem a maior pontuação: proximidade + tempo esperando + entregas por hora no dia + turno de rodízio − recusas recentes. O aceite usa transação: ninguém pega o mesmo pedido duas vezes.
 - **Equipe própria:** a loja pode mandar primeiro para os seus entregadores; se ninguém aceitar no tempo configurado, cai no sistema geral.
 - **Lote:** várias comandas da mesma loja vão como uma oferta só ("3 entregas"); o entregador aceita todas ou nenhuma. Incluir comanda depois exige o aceite dele.
 - **Entrega:** a oferta mostra só o bairro; depois do aceite, PIN de coleta na loja → rota otimizada no Google Maps → "Entregue" só perto do destino (150 m).
 - **Dinheiro:** o sistema **não movimenta dinheiro**, só registra os números. Loja marca "paguei", entregador marca "recebi". A taxa da plataforma (por entrega ou mensal) vira uma fatura mensal que o Admin marca como paga.
 - **Incentivos:** a cada 15 minutos o sistema mede cada zona (pedidos, entregadores online, tempo de aceite, chuva pela Open-Meteo) e sugere descontos, bônus semanais ou turnos de rodízio para o Admin aprovar.
+
+## Receber comandas do PDV
+
+O celular da loja se passa por impressora térmica e recebe os cupons **com o app aberto ou fechado** (serviço Android em primeiro plano, que liga sozinho quando o celular reinicia). Três jeitos de o PDV "imprimir" nele:
+
+| Jeito | Para quem | Como configurar no PDV |
+| --- | --- | --- |
+| Bluetooth clássico (SPP) | PDV no Windows com Bluetooth; apps Android que imprimem em impressora pareada | Parear o celular e usar a porta COM criada (driver "Generic / Text Only" ou ESC/POS) |
+| Bluetooth BLE | Apps que procuram impressoras portáteis BLE | Procurar impressora no app; o celular anuncia os serviços BLE mais usados por impressoras térmicas |
+| Rede (RAW, porta 9100) | PDV em computador na mesma rede | Impressora de rede com "Porta TCP/IP padrão" no IP do celular, porta 9100 |
+
+O que o leitor entende (`packages/core`):
+
+- **ESC/POS e variantes** (Epson, Elgin, Bematech, Daruma, Tanca, clones): todos os comandos de formatação, código de barras, QR, logotipo, gaveta e consultas de status são removidos. O app responde às consultas de status como uma impressora "OK", porque alguns PDVs só imprimem depois disso.
+- **Acentos:** CP850, CP860, CP437, Windows-1252 e UTF-8, com detecção automática (muitos PDVs anunciam uma página e mandam outra).
+- **Cupom impresso como imagem** (comum em sistemas web e drivers do Windows): a imagem é remontada e lida por OCR no próprio celular (ML Kit), sem internet.
+- **Layouts:** rótulos com ou sem acento, com pontilhado, hífen ou colunas; valor na linha de baixo; endereço numa linha só (rua, número, bairro, cidade, UF, CEP); seções sem rótulo; rua e número separados; papel estreito com palavra cortada; zona rural (Linha, Lote, Gleba).
+- **Pagamento:** pago online ou cobrar na entrega, em dinheiro, cartão (avisa o entregador para levar maquininha) ou Pix; troco "para" ou "de".
+- **Separação:** várias vias num trabalho (corte de papel, `ESC @`, form feed ou comandas coladas). Vias repetidas, via de cozinha, balcão, mesa, reimpressão e o endereço da própria loja no topo do cupom são descartados.
+- Comandas guardadas em disco até serem processadas: sem internet, nada se perde.
+
+Quando a loja corrige uma comanda lida errado, o texto original e a correção vão para **Amostras de comandas** no Admin. Coloque esses exemplos em `packages/core/test/comanda_test.dart` e ajuste o leitor.
+
+Em Ajustes → Receber comandas há **Testar leitura / colar pedido**: cole o texto de um cupom para ver o que o app entende (ou criar a comanda direto).
 
 ## Testes automáticos
 
@@ -73,6 +97,6 @@ Para testar sem projeto real, use os emuladores (`firebase emulators:start`) e r
 ## Pontos para revisar antes de produção
 
 - **iFood:** exige cadastro de integrador e homologação no Portal do Desenvolvedor. Os nomes de campos e a assinatura do webhook estão isolados em `functions/src/ifood.ts` para conferir com a documentação vigente.
-- **Impressora Bluetooth:** funciona com o app aberto. Para receber com o app em segundo plano, o próximo passo é mover `ImpressoraVirtual.kt` para um serviço em primeiro plano. Cada PDV imprime de um jeito: teste com o seu e ajuste `packages/core/lib/src/comanda.dart` (há testes de exemplo).
+- **Recepção de comandas:** teste com o PDV real de cada loja. Os perfis BLE são os mais comuns em impressoras térmicas; um app com perfil diferente precisa ser adicionado em `ReceptorBle.kt`. Em celulares Xiaomi, Samsung e Motorola, libere o app da economia de bateria (o app oferece o atalho).
 - **Endereços:** usam o geocodificador do próprio Android (grátis, sem chave). Se a precisão não bastar, troque pela Geocoding API do Google.
 - **Extrato em PDF** e **mapa ao vivo** no Admin ainda não foram feitos.

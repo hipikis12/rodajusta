@@ -110,6 +110,24 @@ test("loja salva configuração válida e não salva inválida", async () => {
   await assertFails(updateDoc(doc(db, "lojistas/loja1"), { config: ok, aprovado: true }));
 });
 
+test("loja liga a recepção de comandas (Bluetooth, BLE, rede) e o repasse por IP", async () => {
+  const db = como("loja1", LOJA);
+  const cfg = {
+    valorModo: "fixo", valorFixoCentavos: 700, faixas: [], destinoPadrao: "geral", envioAutomatico: false,
+    impressoraAtiva: true, receberBluetooth: true, receberBle: false, receberRede: true, repassarPara: "192.168.100.200:9100",
+  };
+  await assertSucceeds(updateDoc(doc(db, "lojistas/loja1"), { config: cfg }));
+  await assertFails(updateDoc(doc(db, "lojistas/loja1"), { config: { ...cfg, receberRede: "sim" } }));
+});
+
+test("amostras de comanda: loja grava a sua, só o admin lê", async () => {
+  const amostra = { lojistaId: "loja1", textoBruto: "PEDIDO 1", extraido: {}, corrigido: {}, em: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(como("loja1", LOJA), "amostrasComanda/a1"), amostra));
+  await assertFails(setDoc(doc(como("loja2", LOJA), "amostrasComanda/a2"), amostra));
+  await assertFails(getDoc(doc(como("loja1", LOJA), "amostrasComanda/a1")));
+  await assertSucceeds(getDoc(doc(como("adm", { papel: "admin", aprovado: true }), "amostrasComanda/a1")));
+});
+
 test("comandas: loja cria e descarta as suas", async () => {
   const db = como("loja1", LOJA);
   await assertSucceeds(setDoc(doc(db, "lojistas/loja1/comandas/c1"), { origem: "comanda", status: "pendente", descricao: "x" }));

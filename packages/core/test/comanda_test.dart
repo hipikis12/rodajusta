@@ -247,6 +247,12 @@ TOTAL 40,00
       expect(r.ignoradas.single, contains('cozinha'));
     });
 
+    test('"VIA ENTREGADOR" / "VIA CLIENTE" no topo não são endereço', () {
+      final c = extrairComanda('VIA ENTREGADOR\n$entrega');
+      expect(c.endereco, 'Rua Rio Branco, 80');
+      expect(c.enderecoDoTopo, isFalse);
+    });
+
     test('duas vias iguais viram uma entrega', () {
       final r = lerTrabalho([entrega, entrega]);
       expect(r.entregas, hasLength(1));

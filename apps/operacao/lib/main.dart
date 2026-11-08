@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'servicos/api.dart';
 import 'servicos/notificacoes.dart';
+import 'servicos/processador_comandas.dart';
 import 'tema.dart';
 import 'telas/entrada.dart';
 import 'telas/entregador/cadastro_entregador.dart';
@@ -16,12 +17,7 @@ import 'widgets/comum.dart';
 
 const _usarEmulador = bool.fromEnvironment('USAR_EMULADOR');
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  if (!DefaultFirebaseOptions.configurado) {
-    runApp(const _SemConfiguracao());
-    return;
-  }
+Future<void> _iniciarFirebase() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   if (_usarEmulador) {
     const host = String.fromEnvironment('EMULADOR_HOST', defaultValue: '10.0.2.2');
@@ -29,7 +25,30 @@ Future<void> main() async {
     FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
     funcoes.useFunctionsEmulator(host, 5001);
   }
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (!DefaultFirebaseOptions.configurado) {
+    runApp(const _SemConfiguracao());
+    return;
+  }
+  await _iniciarFirebase();
   runApp(const RodaJustaApp());
+}
+
+/// Ponto de entrada do motor sem tela usado pelo serviço da impressora
+/// (ServicoImpressora.kt): processa comandas com o app fechado.
+@pragma('vm:entry-point')
+Future<void> processadorDeComandas() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (!DefaultFirebaseOptions.configurado) return;
+  try {
+    await _iniciarFirebase();
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow; // o app já iniciou neste processo
+  }
+  await ProcessadorComandas().iniciar();
 }
 
 class RodaJustaApp extends StatelessWidget {

@@ -17,7 +17,8 @@ service cloud.firestore {
     function inteiroEntre(v, min, max) { return v is int && v >= min && v <= max; }
 
     function configValida(c) {
-      return c.keys().hasOnly(['valorModo', 'valorFixoCentavos', 'faixas', 'destinoPadrao', 'esperaEquipeSeg', 'envioAutomatico', 'impressoraAtiva', 'repassarPara'])
+      return c.keys().hasOnly(['valorModo', 'valorFixoCentavos', 'faixas', 'destinoPadrao', 'esperaEquipeSeg', 'envioAutomatico',
+                               'impressoraAtiva', 'repassarPara', 'receberBluetooth', 'receberBle', 'receberRede'])
         && c.valorModo in ['fixo', 'manual', 'faixas']
         && inteiroEntre(c.valorFixoCentavos, 0, 100000)
         && c.faixas is list && c.faixas.size() <= 10
@@ -25,7 +26,10 @@ service cloud.firestore {
         && c.envioAutomatico is bool
         && (!('esperaEquipeSeg' in c) || c.esperaEquipeSeg == null || inteiroEntre(c.esperaEquipeSeg, 15, 600))
         && (!('impressoraAtiva' in c) || c.impressoraAtiva is bool)
-        && (!('repassarPara' in c) || c.repassarPara == null || (c.repassarPara is string && c.repassarPara.size() <= 20));
+        && (!('repassarPara' in c) || c.repassarPara == null || (c.repassarPara is string && c.repassarPara.size() <= 40))
+        && (!('receberBluetooth' in c) || c.receberBluetooth is bool)
+        && (!('receberBle' in c) || c.receberBle is bool)
+        && (!('receberRede' in c) || c.receberRede is bool);
     }
 
     function localizacaoValida(l) {
@@ -113,6 +117,17 @@ service cloud.firestore {
     match /turnos/{id} { allow read: if logado(); }
     match /zonas/{id} { allow read: if logado(); }
     match /config/parametros { allow read: if logado(); }
+
+    // exemplos de comandas corrigidas pela loja, para melhorar o leitor
+    match /amostrasComanda/{id} {
+      allow read: if admin();
+      allow create: if logado() && papel() == 'lojista'
+        && request.resource.data.lojistaId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['lojistaId', 'textoBruto', 'extraido', 'corrigido', 'em'])
+        && request.resource.data.textoBruto is string
+        && request.resource.data.textoBruto.size() <= 20000
+        && request.resource.data.em == request.time;
+    }
 
     // só o Admin lê; ninguém escreve pelo app
     match /metricas/{id} { allow read: if admin(); }

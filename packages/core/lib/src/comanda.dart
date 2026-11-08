@@ -137,7 +137,7 @@ final _reTelefone = RegExp(r'(?:\+?55\s?)?\(?\b(\d{2})\)?[\s.\-]?(9?\d{4})[\s.\-
 final _reLogradouro = RegExp(
   r'^(rua|r\.|av\.?|avenida|travessa|tv\.?|trav\.?|alameda|al\.|estrada|estr?\.|rodovia|rod\.|linha|lh\.?|gleba|'
   r'lote|travessao|chacara|sitio|fazenda|km|br[\s\-]?\d|ro[\s\-]?\d|praca|pca\.?|setor|quadra|qd\.?|conjunto|cj\.?|'
-  r'condominio|cond\.?|residencial|loteamento|vila|viela|beco|largo|passagem|via|ladeira|servidao)\b',
+  r'condominio|cond\.?|residencial|loteamento|vila|viela|beco|largo|passagem|ladeira|servidao)\b(?! (cozinha|producao|cliente|entregador|loja|balcao))',
 );
 final _reRural = RegExp(r'^(linha|lh\.?|gleba|lote|travessao|chacara|sitio|fazenda|km|br[\s\-]?\d|ro[\s\-]?\d)\b');
 final _reComplemento = RegExp(r'^(apto?\.?|apartamento|bloco|bl\.?|casa|fundos|sala|loja|andar|torre|kitnet|kit|quitinete|edificio|ed\.)\b');
@@ -722,8 +722,8 @@ void _agendamento(ComandaExtraida c, String n) {
 }
 
 TipoComanda _tipo(ComandaExtraida c, String n) {
-  final temEndereco = c.endereco.isNotEmpty;
-  if (temEndereco) return TipoComanda.entrega;
+  // endereço no corpo do cupom manda; o do topo pode ser o da loja
+  if (c.endereco.isNotEmpty && !c.enderecoDoTopo) return TipoComanda.entrega;
   if (RegExp(r'\b(retirada|retirar no local|retira no local|cliente retira|cliente vai buscar|para viagem|balcao|take ?out|'
           r'buscar no local|retirar na loja|retira na loja)\b')
       .hasMatch(n)) {
@@ -733,6 +733,7 @@ TipoComanda _tipo(ComandaExtraida c, String n) {
   if (RegExp(r'via (da |de )?(cozinha|producao)|\bcozinha\b|\bproducao\b|\bpreparo\b|\bchapa\b').hasMatch(n)) {
     return TipoComanda.cozinha;
   }
+  if (c.endereco.isNotEmpty) return TipoComanda.entrega;
   if (RegExp(r'\b(delivery|tele ?entrega|motoboy|para entrega|entregar)\b').hasMatch(n)) return TipoComanda.entrega;
   return TipoComanda.desconhecido;
 }
@@ -796,7 +797,10 @@ LeituraDeImpressao lerTrabalho(List<String> textosDosSegmentos) {
       });
       continue;
     }
-    if (c.numero.isNotEmpty && r.entregas.any((e) => e.numero == c.numero)) {
+    final k = c.numero.isEmpty ? -1 : r.entregas.indexWhere((e) => e.numero == c.numero);
+    if (k >= 0) {
+      // duas vias do mesmo pedido: fica a mais completa
+      if (c.confianca > r.entregas[k].confianca) r.entregas[k] = c;
       r.ignoradas.add('Segunda via do pedido #${c.numero}');
       continue;
     }

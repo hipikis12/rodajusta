@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:rodajusta_core/rodajusta_core.dart';
 
 import '../../servicos/api.dart';
-import '../../servicos/impressora.dart';
 import '../../widgets/comum.dart';
+import 'recepcao_comandas.dart';
 
 /// Configurações da loja: valor da entrega, destino dos pedidos, impressora, iFood.
 class AjustesLoja extends StatelessWidget {
@@ -84,32 +84,8 @@ class AjustesLoja extends StatelessWidget {
               value: c['envioAutomatico'] == true,
               onChanged: (v) => _salvar(context, com('envioAutomatico', v)),
             ),
-            const _Titulo('Impressora Bluetooth'),
-            SwitchListTile(
-              title: const Text('Receber comandas do PDV'),
-              subtitle: const Text('No seu sistema, adicione a impressora "RodaJusta" pareada com este celular.'),
-              value: c['impressoraAtiva'] == true,
-              onChanged: (v) async {
-                await _salvar(context, com('impressoraAtiva', v));
-                try {
-                  v
-                      ? await ImpressoraVirtual.instancia.iniciar(repassarPara: c['repassarPara'] as String?)
-                      : await ImpressoraVirtual.instancia.parar();
-                } catch (e) {
-                  if (context.mounted) avisar(context, 'Bluetooth indisponível: $e');
-                }
-              },
-            ),
-            ListTile(
-              title: const Text('Deixar visível para parear'),
-              subtitle: const Text('Use no primeiro pareamento com o computador do PDV.'),
-              onTap: () => ImpressoraVirtual.instancia.ficarVisivel(),
-            ),
-            ListTile(
-              title: const Text('Repassar para a impressora da loja'),
-              subtitle: Text(c['repassarPara'] == null ? 'Desligado: a comanda não sai no papel' : 'Imprimindo também em ${c['repassarPara']}'),
-              onTap: () => _escolherImpressora(context, c),
-            ),
+            const _Titulo('Receber comandas do PDV'),
+            RecepcaoComandas(config: c, salvar: (novo) => _salvar(context, novo)),
             const _Titulo('iFood'),
             ListTile(
               title: Text(loja['ifoodMerchantId'] == null ? 'Conectar loja do iFood' : 'iFood conectado'),
@@ -128,22 +104,6 @@ class AjustesLoja extends StatelessWidget {
         },
       ),
     );
-  }
-
-  Future<void> _escolherImpressora(BuildContext context, Map<String, dynamic> c) async {
-    final lista = await ImpressoraVirtual.instancia.pareadas();
-    if (!context.mounted) return;
-    final escolha = await showModalBottomSheet<String>(
-      context: context,
-      builder: (s) => ListView(shrinkWrap: true, children: [
-        const ListTile(title: Text('Impressoras pareadas')),
-        ListTile(title: const Text('Não repassar'), onTap: () => Navigator.pop(s, '')),
-        for (final p in lista)
-          ListTile(title: Text(p['nome'] ?? ''), subtitle: Text(p['endereco'] ?? ''), onTap: () => Navigator.pop(s, p['endereco'])),
-      ]),
-    );
-    if (escolha == null || !context.mounted) return;
-    await _salvar(context, {...c, 'repassarPara': escolha.isEmpty ? null : escolha});
   }
 
   Future<void> _conectarIfood(BuildContext context) async {

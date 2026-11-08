@@ -85,8 +85,13 @@ function paraComanda(o: Record<string, any>) {
     lng: end.coordinates?.longitude ?? null,
     totalCentavos: Math.round(Number(o.total?.orderAmount ?? 0) * 100),
     pagamento: pendente > 0
-      ? { tipo: "cobrar", valorCobrarCentavos: pendente, trocoParaCentavos: Math.round(Number(dinheiro?.cash?.changeFor ?? 0) * 100) }
-      : { tipo: "pago", valorCobrarCentavos: 0, trocoParaCentavos: 0 },
+      ? {
+          tipo: "cobrar",
+          valorCobrarCentavos: pendente,
+          trocoParaCentavos: Math.round(Number(dinheiro?.cash?.changeFor ?? 0) * 100),
+          forma: dinheiro ? "dinheiro" : "cartao",
+        }
+      : { tipo: "pago", valorCobrarCentavos: 0, trocoParaCentavos: 0, forma: "" },
     status: "pendente",
     criadoEm: FieldValue.serverTimestamp(),
   };

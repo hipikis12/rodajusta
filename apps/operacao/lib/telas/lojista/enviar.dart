@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:rodajusta_core/rodajusta_core.dart';
 
 import '../../servicos/api.dart';
+import '../../servicos/comandas.dart';
 import '../../servicos/impressora.dart';
 import '../../servicos/localizacao.dart';
 import '../../widgets/comum.dart';
-import 'home_lojista.dart';
 
 /// Comandas pendentes (Bluetooth, iFood ou digitadas) e o botão Enviar.
 class TelaEnviar extends StatefulWidget {
@@ -243,17 +243,16 @@ class _BarraImpressora extends StatelessWidget {
       builder: (context, s) {
         final estado = s.data ?? 'parada';
         final texto = switch (estado) {
-          'aguardando' => 'Impressora RodaJusta pronta para receber comandas',
-          'conectada' => 'Recebendo comanda…',
-          'parada' => 'Impressora desligada (Ajustes → Impressora)',
+          'aguardando' => 'Pronto para receber comandas (também com o app fechado)',
+          'conectada' => 'PDV conectado, recebendo…',
+          'parada' => 'Recepção de comandas desligada (Ajustes)',
           _ => estado,
         };
+        final ligado = estado != 'parada' && !estado.startsWith('Bluetooth desligado');
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: estado == 'aguardando' || estado == 'conectada'
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: ligado ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Row(children: [
             const Icon(Icons.print, size: 18),
             const SizedBox(width: 8),
@@ -292,6 +291,7 @@ class _EditarComandaState extends State<EditarComanda> {
     text: _centavosTexto((d['pagamento'] as Map?)?['valorCobrarCentavos'] ?? d['totalCentavos']),
   );
   late final _troco = TextEditingController(text: _centavosTexto((d['pagamento'] as Map?)?['trocoParaCentavos']));
+  late String _forma = (d['pagamento'] as Map?)?['forma'] as String? ?? '';
   late Ponto? _ponto = pontoDe(d['lat'], d['lng']);
   String? _conferido;
 
@@ -299,7 +299,8 @@ class _EditarComandaState extends State<EditarComanda> {
       v is num && v > 0 ? formatarReais(v.toInt()).replaceAll('R\$ ', '') : '';
 
   Future<void> _localizar() async {
-    final p = await executar(context, () => geocodificar('${_endereco.text} - ${_bairro.text}'));
+    final cidade = [end['cidade'], end['uf']].where((s) => s != null && '$s'.isNotEmpty).join(' - ');
+    final p = await executar(context, () => geocodificar('${_endereco.text} - ${_bairro.text}', cidade: cidade));
     if (!mounted) return;
     if (p == null) {
       avisar(context, 'Não achei esse endereço. Confira rua, número e bairro.');
@@ -334,6 +335,7 @@ class _EditarComandaState extends State<EditarComanda> {
         'tipo': _cobrar ? 'cobrar' : 'pago',
         'valorCobrarCentavos': _cobrar ? (lerReais(_valorCobrar.text) ?? 0) : 0,
         'trocoParaCentavos': _cobrar ? (lerReais(_troco.text) ?? 0) : 0,
+        'forma': _cobrar ? _forma : '',
       },
       'confianca': 1.0,
       if (widget.id == null) 'criadoEm': FieldValue.serverTimestamp(),
@@ -347,6 +349,7 @@ class _EditarComandaState extends State<EditarComanda> {
       }
       return true;
     });
+    if (ok == true && widget.id != null) await guardarAmostra(d, dados);
     if (ok == true && mounted) Navigator.of(context).pop();
   }
 
@@ -393,9 +396,29 @@ class _EditarComandaState extends State<EditarComanda> {
           onChanged: (v) => setState(() => _cobrar = v),
         ),
         if (_cobrar) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'dinheiro', label: Text('Dinheiro')),
+                ButtonSegment(value: 'cartao', label: Text('Cartão')),
+                ButtonSegment(value: 'pix', label: Text('Pix')),
+              ],
+              emptySelectionAllowed: true,
+              selected: {if (_forma.isNotEmpty) _forma},
+              onSelectionChanged: (v) => setState(() => _forma = v.isEmpty ? '' : v.first),
+            ),
+          ),
           _campo(_valorCobrar, 'Valor a cobrar (R\$)', teclado: TextInputType.number),
           _campo(_troco, 'Troco para (R\$)', teclado: TextInputType.number),
         ],
+        if ((d['localizador'] as String? ?? '').isNotEmpty)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.confirmation_number_outlined),
+            title: Text('Localizador ${d['localizador']}'),
+            subtitle: const Text('Vai junto na referência para o entregador'),
+          ),
         if (d['textoBruto'] != null)
           ExpansionTile(
             tilePadding: EdgeInsets.zero,

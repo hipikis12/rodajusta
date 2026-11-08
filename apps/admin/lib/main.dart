@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'servicos/api.dart';
 import 'tema.dart';
+import 'telas/amostras.dart';
 import 'telas/aprovacoes.dart';
 import 'telas/entregadores.dart';
 import 'telas/financeiro.dart';
@@ -128,6 +129,7 @@ class _InicioState extends State<Inicio> {
     (Icons.receipt_long_outlined, 'Financeiro', Financeiro()),
     (Icons.umbrella_outlined, 'Incentivos e rodízio', Incentivos()),
     (Icons.tune, 'Parâmetros e zonas', Parametros()),
+    (Icons.receipt_long, 'Amostras de comandas', Amostras()),
   ];
 
   @override

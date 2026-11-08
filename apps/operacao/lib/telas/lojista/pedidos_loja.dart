@@ -4,7 +4,7 @@ import 'package:rodajusta_core/rodajusta_core.dart';
 
 import '../../servicos/api.dart';
 import '../../widgets/comum.dart';
-import 'home_lojista.dart';
+import '../../servicos/comandas.dart';
 
 /// Lotes enviados: status ao vivo, PIN de coleta, reenviar e cancelar.
 class PedidosLoja extends StatelessWidget {
